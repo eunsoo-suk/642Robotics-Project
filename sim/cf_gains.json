@@ -1,0 +1,37 @@
+{
+  "pid_attitude": {
+    "attFiltCut": 15.0,
+    "attFiltEn": 0.0,
+    "pitch_kd": 0.0,
+    "pitch_kff": 0.0,
+    "pitch_ki": 3.0,
+    "pitch_kp": 6.0,
+    "roll_kd": 0.0,
+    "roll_kff": 0.0,
+    "roll_ki": 3.0,
+    "roll_kp": 6.0,
+    "yawMaxDelta": 0.0,
+    "yaw_kd": 0.3499999940395355,
+    "yaw_kff": 0.0,
+    "yaw_ki": 1.0,
+    "yaw_kp": 6.0
+  },
+  "pid_rate": {
+    "omxFiltCut": 30.0,
+    "omyFiltCut": 30.0,
+    "omzFiltCut": 30.0,
+    "pitch_kd": 2.5,
+    "pitch_kff": 0.0,
+    "pitch_ki": 500.0,
+    "pitch_kp": 250.0,
+    "rateFiltEn": 0.0,
+    "roll_kd": 2.5,
+    "roll_kff": 0.0,
+    "roll_ki": 500.0,
+    "roll_kp": 250.0,
+    "yaw_kd": 0.0,
+    "yaw_kff": 0.0,
+    "yaw_ki": 16.700000762939453,
+    "yaw_kp": 120.0
+  }
+}
