@@ -1,0 +1,13 @@
+{
+  "rate_levels": [
+    -90.0,
+    -30.0,
+    0.0,
+    30.0,
+    90.0
+  ],
+  "tilt_norm_deg": 60.0,
+  "w_switch": 0.05,
+  "switch_mode": "prop",
+  "gyro_lpf_hz": 80.0
+}

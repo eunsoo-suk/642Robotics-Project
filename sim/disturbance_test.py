@@ -1,23 +1,23 @@
 r"""
-실험 3: 비행 중 순간 충격 테스트 (DQN vs PID)
+Experiment 3: sudden mid-flight kick test (DQN vs PID)
 
-시나리오 (에피소드 3초):
-    0~1초  수평 호버링 (기울기 0, 회전 0)
-    1초    순간 충격: 회전속도를 갑자기 더함 (손으로 툭 친 효과)
-    1~3초  복구 관찰
-충격: 크기 100~2000 deg/s (9단계) x 방향 24개(360도를 15도 간격, roll-pitch 평면) = 216개, 모든 제어기에 동일
-    - 500 deg/s 이하는 펌웨어 rate PID(500Hz)가 20ms 안에 대부분 흡수해서 기울기가 10° 미만 (예비 실험)
-    - 상한 2000 deg/s = Crazyflie 자이로(BMI088) 측정 한계, 이 이상은 모터 출력 한계로 어떤 제어기도 복구 불가
+Scenario (3 s episode):
+    0-1 s  level hover (tilt 0, rate 0)
+    1 s    sudden kick: add angular rate at once (like a hand flick)
+    1-3 s  watch the recovery
+Kicks: size 100-2000 deg/s (9 sizes) x 24 directions (every 15 deg in the roll-pitch plane) = 216 cases, same for every controller
+    - at 500 deg/s or less, the firmware rate PID (500 Hz) absorbs most of it within 20 ms, so the tilt stays under 10 deg (pilot test)
+    - upper limit 2000 deg/s = range of the Crazyflie gyro (BMI088); beyond that, no controller can recover because of motor limits
 
-학습 범위: 학습 시 초기 회전속도가 축마다 ±100 deg/s (정사각형 범위)
-    크기 <= 100        : 모든 방향이 학습 범위 안
-    100 < 크기 <= 141  : 대각선은 안, 정면은 밖 (경계)
-    크기 > 141          : 모든 방향이 학습 범위 밖
+Training range: initial rate during training is +/-100 deg/s per axis (a square region)
+    size <= 100        : every direction is inside the training range
+    100 < size <= 141  : diagonals inside, axis directions outside (edge)
+    size > 141         : every direction is outside the training range
 
-실행:
-    python disturbance_test.py                         # PID + 최종 DQN 3개(seed 0,1,2)
+Run:
+    python disturbance_test.py                         # PID + the 3 final DQN models (seeds 0, 1, 2)
     python disturbance_test.py --models a\best_model.zip b\best_model.zip
-결과: results\disturbance_<날짜시간>\  (요약표, CSV, 그래프 3개)
+Output: results\disturbance_<date_time>\  (summary table, CSV, 3 plots)
 """
 import argparse
 import csv
@@ -28,7 +28,7 @@ from attitude_env import AttitudeEnv, load_env_config
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 def _latest_models(prefix='dqn_25a_sw0.05', seeds=(0, 1, 2)):
-    """시드별로 가장 최근 학습 폴더 중 자이로 필터(gyro_lpf_hz) 설정이 있는 모델을 자동 선택."""
+    """For each seed, pick the latest training folder whose model has the gyro filter (gyro_lpf_hz) setting."""
     import glob, json
     out = []
     for s in seeds:
@@ -45,10 +45,10 @@ DEFAULT_MODELS = _latest_models()
 
 ap = argparse.ArgumentParser()
 ap.add_argument('--models', nargs='*', default=None)
-ap.add_argument('--mags', default='100,250,500,750,1000,1250,1500,1750,2000', help='충격 크기 (deg/s)')
-ap.add_argument('--polar', default='1000,1250,1500,1750', help='방향별 그래프를 그릴 크기')
-ap.add_argument('--example-mag', type=float, default=1250, help='예시 그래프의 충격 크기 (+roll 방향)')
-ap.add_argument('--dirs', type=int, default=24, help='방향 개수 (360도를 균등 분할)')
+ap.add_argument('--mags', default='100,250,500,750,1000,1250,1500,1750,2000', help='kick sizes (deg/s)')
+ap.add_argument('--polar', default='1000,1250,1500,1750', help='kick sizes for the per-direction plot')
+ap.add_argument('--example-mag', type=float, default=1250, help='kick size for the example plot (+roll direction)')
+ap.add_argument('--dirs', type=int, default=24, help='number of directions (equal split of 360 deg)')
 ap.add_argument('--kick-time', type=float, default=1.0)
 ap.add_argument('--band', type=float, default=5.0)
 args = ap.parse_args()
@@ -64,7 +64,7 @@ os.makedirs(out, exist_ok=True)
 
 
 def range_label(mag):
-    return '안' if mag <= 100 else ('경계' if mag <= 100 * np.sqrt(2) + 1e-6 else '밖')
+    return 'in' if mag <= 100 else ('edge' if mag <= 100 * np.sqrt(2) + 1e-6 else 'out')
 
 
 def run_episode(env, model, mag, theta):
@@ -100,7 +100,7 @@ def run_episode(env, model, mag, theta):
         while j > 0 and inside[j - 1]:
             j -= 1
         settle = (j + 1) * DT
-    proj = post @ u                      # 충격 방향으로 기운 정도 (+), 반대로 넘어간 정도 (-)
+    proj = post @ u                      # tilt toward the kick direction (+), overshoot past level (-)
     return dict(success=int(success), tumbled=int(term), max_tilt=float(tilt.max()),
                 settle_s=settle, overshoot=float(max(0.0, -proj.min())),
                 switch_per_s=switches / max(len(post) * DT, 1e-9)), h
@@ -123,7 +123,7 @@ for name, model, cfg in controllers:
             if mag == args.example_mag and th == 0:
                 examples[name] = h
     env.close()
-    print(f'  {name} 완료 ({time.time() - t0:.0f}s)')
+    print(f'  {name} done ({time.time() - t0:.0f}s)')
 
 with open(os.path.join(out, 'disturbance_results.csv'), 'w', newline='', encoding='utf-8') as f:
     w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
@@ -148,10 +148,10 @@ def fmt(x, unit='', d=1):
     return '   -  ' if np.isnan(x) else f'{x:.{d}f}{unit}'
 
 
-print(f'\n충격 {len(MAGS)}단계 x 방향 {len(THETAS)}개 = {len(MAGS) * len(THETAS)}개 / 제어기, '
-      f'DQN은 시드 {len(dqn_names)}개 평균±편차\n')
-print(f'{"크기":>6} {"학습범위":>6} | {"성공률 PID":>10} {"DQN":>12} | {"최대기울기 PID":>13} {"DQN":>12} | '
-      f'{"복귀시간 PID":>11} {"DQN":>13} | {"뒤집힘 PID":>9} {"DQN":>6} | {"명령변경 DQN":>11}')
+print(f'\nKicks: {len(MAGS)} sizes x {len(THETAS)} directions = {len(MAGS) * len(THETAS)} per controller, '
+      f'DQN = mean +/- std over {len(dqn_names)} seeds\n')
+print(f'{"size":>6} {"range":>6} | {"success PID":>11} {"DQN":>11} | {"max tilt PID":>12} {"DQN":>13} | '
+      f'{"recovery PID":>12} {"DQN":>12} | {"flip PID":>9} {"DQN":>6} | {"switches DQN":>12}')
 summary = []
 for mag in MAGS:
     ps, (ds, dss) = stat('PID', mag, 'success') * 100, [x * 100 for x in dqn_stat(mag, 'success')]
@@ -163,7 +163,7 @@ for mag in MAGS:
     print(f'{mag:6.0f} {range_label(mag):>6} | {ps:9.0f}% {ds:6.0f}±{dss:3.0f}% | {pt:12.1f}° {dt:6.1f}±{dts:4.1f}° | '
           f'{fmt(pr, "s", 2):>11} {fmt(dr, "s", 2) + "±" + fmt(drs, "", 2):>13} | {pf:8.0f}% {df:5.0f}% | {sw:6.1f}±{sws:.1f}/s')
 
-# ---------------- 그래프 ----------------
+# ---------------- plots ----------------
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -214,8 +214,8 @@ if examples:
     ax[0].set_title(f'Example: {args.example_mag:.0f} deg/s kick in +roll direction at t = 1 s')
     fig.tight_layout(); fig.savefig(os.path.join(out, 'disturbance_example.png'), dpi=120)
 
-print(f'\n결과 폴더: {out}')
-print('  disturbance_summary.png  (크기별 성공률·최대기울기·복귀시간)')
-print(f'  disturbance_polar.png    (방향별 성공률: {args.polar} deg/s)')
-print(f'  disturbance_example.png  (예시: {args.example_mag:.0f} deg/s, +roll 방향)')
-print('  disturbance_results.csv  (전체 결과)')
+print(f'\nOutput folder: {out}')
+print('  disturbance_summary.png  (success rate, max tilt, recovery time by kick size)')
+print(f'  disturbance_polar.png    (success rate by direction: {args.polar} deg/s)')
+print(f'  disturbance_example.png  (example: {args.example_mag:.0f} deg/s, +roll direction)')
+print('  disturbance_results.csv  (all results)')

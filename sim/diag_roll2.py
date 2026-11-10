@@ -1,4 +1,4 @@
-"""자이로 값 vs 실제 자세 변화(쿼터니언 미분) 비교 + 모터별 RPM."""
+"""Compare gyro values with the actual attitude change (quaternion derivative), plus RPM per motor."""
 import numpy as np
 import pybullet as p
 from attitude_env import AttitudeEnv
@@ -17,12 +17,12 @@ for k in range(1000):
     _, w = p.getBaseVelocity(did, physicsClientId=cid)
     R = np.array(p.getMatrixFromQuaternion(q)).reshape(3, 3)
     if prev is not None and k % 50 == 0:
-        dR = prev.T @ R            # body frame 회전 변화
+        dR = prev.T @ R            # rotation change in the body frame
         w_fd = np.degrees(np.array([dR[2, 1] - dR[1, 2], dR[0, 2] - dR[2, 0], dR[1, 0] - dR[0, 1]]) / 2 * 500)
         st = env.aviary._getDroneStateVector(0)
         print(f't={1+(k+1)/500:4.2f} roll={np.degrees(p.getEulerFromQuaternion(q)[0]):6.1f} '
               f'gyro(state)={body_rates_deg(st[3:7], st[13:16]).round(1)} '
-              f'gyro(pyb)={np.degrees(R.T @ np.array(w)).round(1)} 실제(미분)={w_fd.round(1)} '
+              f'gyro(pyb)={np.degrees(R.T @ np.array(w)).round(1)} actual(fd)={w_fd.round(1)} '
               f'rpm={env.aviary.last_clipped_action[0].round(0) if hasattr(env.aviary,"last_clipped_action") else "-"}')
     prev = R
 env.close()

@@ -1,11 +1,11 @@
 r"""
-시뮬레이터 3D 화면으로 정책 동작을 눈으로 보기.
+Watch a policy in the simulator's 3D view.
 
-    python watch.py --policy pid            # angle PID 베이스라인
-    python watch.py --policy zero           # 회전속도 0 (가만히)
-    python watch.py --policy random         # 무작위
-    python watch.py --policy dqn --model results\dqn_xxx\best_model.zip   # (3단계 이후) 학습된 DQN
-옵션: --episodes 5  --slow 2.0 (2배 느리게)
+    python watch.py --policy pid            # angle PID baseline
+    python watch.py --policy zero           # zero rate (do nothing)
+    python watch.py --policy random         # random actions
+    python watch.py --policy dqn --model results\dqn_xxx\best_model.zip   # trained DQN
+Options: --episodes 5  --slow 2.0 (2x slower)
 """
 import argparse
 import time
@@ -31,7 +31,7 @@ if args.policy == 'dqn':
 rng = np.random.default_rng(0)
 for ep in range(args.episodes):
     obs, info = env.reset(seed=100 + ep)
-    print(f'\n[에피소드 {ep+1}] 시작 기울기 roll={info["roll"]:.1f}°, pitch={info["pitch"]:.1f}°')
+    print(f'\n[episode {ep+1}] initial tilt roll={info["roll"]:.1f}°, pitch={info["pitch"]:.1f}°')
     ret, done, text = 0.0, False, -1
     while not done:
         t0 = time.time()
@@ -53,5 +53,5 @@ for ep in range(args.episodes):
         text = p.addUserDebugText(msg, [pos[0], pos[1], pos[2] + 0.15], [1, 0, 0], 1.2,
                                   replaceItemUniqueId=text if text >= 0 else -1, physicsClientId=cid)
         time.sleep(max(0.0, args.slow / env.CTRL_HZ - (time.time() - t0)))
-    print(f'  종료: 점수 {ret:.1f}, 최종 roll={info["roll"]:.1f}°, pitch={info["pitch"]:.1f}°' + ('  (실패)' if term else ''))
+    print(f'  end: score {ret:.1f}, final roll={info["roll"]:.1f}°, pitch={info["pitch"]:.1f}°' + ('  (failed)' if term else ''))
 env.close()

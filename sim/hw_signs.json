@@ -1,0 +1,16 @@
+{
+  "uri": "radio://0/80/2M/E7E7E7E7E7",
+  "signs": {
+    "roll": 1,
+    "pitch": -1,
+    "roll_rate": 1,
+    "pitch_rate": 1
+  },
+  "log_rate_hz": 100.0,
+  "checked": "2026-11-09 01:09",
+  "cmd_signs": {
+    "roll": 1,
+    "pitch": 1
+  },
+  "cmd_checked": "2026-11-09 01:16"
+}

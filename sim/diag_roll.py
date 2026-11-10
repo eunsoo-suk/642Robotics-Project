@@ -1,4 +1,4 @@
-"""PID +roll 이상 현상 진단: ±roll 충격 후 내부 상태 로그."""
+"""Debug the odd PID +roll behavior: log internal states after a +/- roll kick."""
 import sys
 import numpy as np
 import pybullet as p

@@ -23,7 +23,7 @@ class Env(AttitudeEnv):
     def _inner_step(s, rate_cmd):
         pos, quat, att, vel, gyro = s._state()
         if s.f:
-            # 정상상태 초기화: 첫 호출 시 d1=d2=x/(1+a1+a2)
+            # steady-state init: on the first call d1 = d2 = x / (1 + a1 + a2)
             for i,f in enumerate(s.f):
                 if f.d1 is None: f.d1 = f.d2 = gyro[i]/(1+f.a1+f.a2)
             gyro = np.array([s.f[i](gyro[i]) for i in range(3)])
@@ -44,7 +44,7 @@ for fc in (None, 80):
             for k in range(100):
                 *_, term, _, info = env.step_angle_pid(); fail |= term
                 ps.append(abs(info['roll'])+abs(info['pitch']))
-            # 진동 크기: 마지막 0.2초 동안 한 스텝 간 각속도 차이
+            # oscillation size: step-to-step rate change during the last 0.2 s
             res.append(f'{d}:{"X" if fail else max(ps[-25:]):.1f}' if not fail else f'{d}:X')
-        print(f'{mag:5d} 마지막0.5s 최대기울기 ', ' '.join(res))
+        print(f'{mag:5d} max tilt in last 0.5 s ', ' '.join(res))
     env.close()

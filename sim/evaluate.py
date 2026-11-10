@@ -1,17 +1,17 @@
 r"""
-DQN vs PID 비교 평가 (2단계 지표 포함, Koch et al. 방식 참고)
+DQN vs PID evaluation (step 2 metrics, following Koch et al.)
 
-    python evaluate.py                                   # PID, 가만히만
+    python evaluate.py                                   # PID and zero-rate only
     python evaluate.py --model results\dqn_xxx\best_model.zip
 
-모든 제어기가 같은 초기 조건(시드 1000~)에서 시작합니다.
-지표:
-    점수        에피소드 보상 합 (0에 가까울수록 좋음)
-    성공률      실패 없이 끝나고, 마지막 0.5초 동안 기울기 < 5°
-    복귀시간    기울기가 5° 안에 들어온 뒤 끝까지 유지되기 시작한 시점 (s)
-    오버슈트    반대 방향으로 넘어간 최대 각도 (°)
-    정상오차    마지막 0.5초 평균 기울기 (°)
-    명령변경    초당 행동이 바뀐 횟수 (떨림 지표, DQN만 의미 있음)
+All controllers start from the same initial conditions (seeds 1000+).
+Metrics:
+    score        sum of episode rewards (closer to 0 is better)
+    success      no failure, and tilt < 5 deg during the last 0.5 s
+    recovery     time when the tilt enters the 5 deg band and stays there until the end (s)
+    overshoot    largest angle past level in the opposite direction (deg)
+    ss error     mean tilt during the last 0.5 s (deg)
+    switches     action changes per second (jitter measure, DQN only)
 """
 import argparse
 import csv
@@ -22,11 +22,11 @@ from attitude_env import AttitudeEnv, load_env_config
 ap = argparse.ArgumentParser()
 ap.add_argument('--model', default=None)
 ap.add_argument('--episodes', type=int, default=50)
-ap.add_argument('--band', type=float, default=5.0, help='복귀 판정 기준 (°)')
+ap.add_argument('--band', type=float, default=5.0, help='recovery band (deg)')
 args = ap.parse_args()
 
 env = AttitudeEnv(**load_env_config(args.model))
-print(f'행동 수: {env.action_space.n}')
+print(f'Number of actions: {env.action_space.n}')
 model = None
 if args.model:
     from stable_baselines3 import DQN
@@ -72,7 +72,7 @@ def rollout(policy, seed):
 
 
 policies = ['zero', 'pid'] + (['dqn'] if model else [])
-names = {'zero': '가만히', 'pid': 'PID(펌웨어)', 'dqn': 'DQN'}
+names = {'zero': 'zero-rate', 'pid': 'PID (fw)', 'dqn': 'DQN'}
 rows, examples = [], {}
 for pol in policies:
     for i in range(args.episodes):
@@ -82,8 +82,8 @@ for pol in policies:
         if i == 0:
             examples[pol] = h
 
-print(f'\n같은 초기 조건 {args.episodes}개 (기울기 ±{env.INIT_TILT:.0f}°, 각속도 ±{env.INIT_RATE:.0f}°/s)\n')
-print(f'{"":<12}{"점수":>8}{"성공률":>8}{"복귀시간":>9}{"오버슈트":>9}{"정상오차":>9}{"명령변경":>9}')
+print(f'\n{args.episodes} identical initial conditions (tilt +/-{env.INIT_TILT:.0f}°, rate +/-{env.INIT_RATE:.0f}°/s)\n')
+print(f'{"":<12}{"score":>8}{"success":>8}{"recovery":>9}{"overshoot":>9}{"ss err":>9}{"switches":>9}')
 for pol in policies:
     r = [x for x in rows if x['policy'] == pol]
     g = lambda k: np.array([x[k] for x in r], dtype=float)
@@ -111,5 +111,5 @@ for a, lab in zip(ax, ['roll (deg)', 'pitch (deg)']):
 ax[1].set_xlabel('time (s)'); ax[0].legend(); ax[0].set_title('Example episode (same initial tilt)')
 png = os.path.join(out_dir, 'eval_example.png')
 fig.tight_layout(); fig.savefig(png, dpi=120)
-print(f'\n상세 결과: {csv_path}\n예시 그래프: {png}')
+print(f'\nDetailed results: {csv_path}\nExample plot: {png}')
 env.close()

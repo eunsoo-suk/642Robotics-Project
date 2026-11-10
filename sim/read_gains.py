@@ -1,9 +1,9 @@
 """
-실기 Crazyflie에서 PID 게인을 읽어 sim/cf_gains.json으로 저장합니다.
-실행 환경: 드론 제어용 .venv (cflib 설치된 환경)
+Read the PID gains from the real Crazyflie and save them to sim/cf_gains.json.
+Environment: the drone-control .venv (with cflib installed)
     .\.venv\Scripts\Activate.ps1
     python sim\read_gains.py
-드론은 켜기만 하면 됩니다. 모터는 돌지 않습니다.
+Just turn the drone on. The motors do not spin.
 """
 import json
 import os
@@ -22,7 +22,7 @@ with SyncCrazyflie(URI, cf=Crazyflie(rw_cache='./cache')) as scf:
     gains = {}
     for g in GROUPS:
         if g not in toc:
-            print(f'[경고] 파라미터 그룹 {g} 없음')
+            print(f'[warning] parameter group {g} not found')
             continue
         gains[g] = {}
         for name in sorted(toc[g].keys()):
@@ -31,4 +31,4 @@ with SyncCrazyflie(URI, cf=Crazyflie(rw_cache='./cache')) as scf:
             print(f'{g}.{name:<14} = {v}')
     with open(OUT, 'w', encoding='utf-8') as f:
         json.dump(gains, f, indent=2)
-    print(f'\n저장 완료: {OUT}')
+    print(f'\nSaved: {OUT}')
