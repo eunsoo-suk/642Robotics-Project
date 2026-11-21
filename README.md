@@ -5,7 +5,7 @@ MSML642 Robotics course project. Team: Eunsoo Suk, Fnu Hardik, Abigail Basener.
 When a small drone is pushed or bumped, it tilts and can flip over. This project trains a
 **deep Q-network (DQN)** that brings a Crazyflie 2.1 back to level (roll = pitch = 0) as fast as
 possible, using only the onboard IMU, and compares it with the default PID controller in the
-Crazyflie firmware. The policy is trained in simulation and then moved to the real drone step by step.
+Crazyflie firmware. The policy is trained in simulation, compared with the PID under identical disturbances, and the simulator is calibrated with a real flight log to study the sim-to-real gap.
 
 ## How it works
 
@@ -32,27 +32,56 @@ To make the simulator behave like the real drone, the firmware rate PID is rewri
 (`cf_controller.py`) with the gains read from our drone (kp 250, ki 500, kd 2.5), and the
 firmware's 80 Hz gyro low-pass filter is added.
 
-## Results (simulation, mean of 3 DQN seeds)
+## Recovery definition and tests
 
-| Test | Metric | DQN | Firmware PID |
+Recovery = tilt <= 5 deg **and** angular rate <= 30 deg/s, held for 0.3 s, within 2 s and without a
+tumble. Recovery time runs from the disturbance (t = 0) to the start of that 0.3 s window. A strict
+version uses a 2 deg band.
+
+| Test | Disturbance |
+|---|---|
+| Initial tilt | 50 random starting tilts and rates |
+| Kick (impulse) | sudden 100-1000 deg/s spin after 1 s of hover, 24 directions (every 15 deg) |
+| Sustained push | constant torque of 0.1-0.5 x reference (~7.4 mN m, all hover thrust on one side) for 0.5 s, 24 directions |
+
+## Results (clean simulator, mean of 3 DQN seeds)
+
+| Test | Metric | Firmware PID | DQN |
 |---|---|---|---|
-| Start from a random tilt (50 cases) | Success rate | 100% | 100% |
-| | Recovery time | **0.18 s** | 0.20 s |
-| | Overshoot | **0.6 deg** | 1.3 deg |
-| | Leftover tilt | 0.9 deg | **0.5 deg** |
-| | Command changes | 1.8 / s | - |
-| Kick while hovering, 100-1000 deg/s, 24 directions (120 trials) | Success rate | 100% (no flips) | 100% |
-| | Mean recovery time | **0.09 s** | 0.14 s |
-| | Recovery time at 1000 deg/s | **0.20 s** | 0.43 s |
-| | Overshoot | **1.4 deg** | 2.1 deg |
-| | Command changes | 9.7 / s | - |
+| All tests | Success / flips | 100% / 0% | 100% / 0% |
+| Initial tilt | Recovery time | **0.23 s** | 0.26 s |
+| | Overshoot | 1.5 deg | **0.2 deg** |
+| | Leftover tilt | **0.3 deg** | 0.9 deg |
+| Kick 1000 deg/s | Recovery time (5 deg) | 0.47 s | **0.44 s** |
+| | Strict recovery (2 deg) | 1.06 s | **0.63 s** |
+| | Overshoot | 5.1 deg | **2.3 deg** |
+| Kick 250 deg/s | Recovery time | **0.01 s** | 0.09 s |
+| Sustained 0.5 x ref. | Recovery time | 0.61 s | **0.40 s** |
+| | Max tilt while pushed | 9.5 deg | **4.8 deg** |
 
-Robustness (1000 deg/s kicks): with mass +/-20% both stay at 100% (20% heavier: PID 0.62 s, DQN
-0.23 s). DQN command delay is fine up to 30 ms. With 20 ms motor lag the DQN drops to about 60%
-while the PID stays at 100%; this is the main weakness and the focus of the next step.
+The DQN is better for large disturbances (about half the overshoot); the PID is faster for small ones
+and more precise near level. With 20% more mass both stay at 100%; with a 20 ms motor delay both
+keep oscillating (the real delay is only 5-10 ms).
 
-Side-by-side video of one kick (DQN vs PID, 10x slow motion):
-https://drive.google.com/file/d/1uuz_r76RBcZPLYME3w4G3TXwoDv6CSdp/view?usp=sharing
+## Sim-to-real: calibrating the simulator with flight logs
+
+The real DQN flight flipped after 4.6 s. Following the reality-gap lecture (base set, envelope of
+noise), `sysid_from_logs.py` searches 972 simulator settings (motor delay, motor response time, gyro
+noise, turbulence strength and speed, battery headroom, motor-to-motor thrust difference) and keeps
+those whose PID hover matches the real log (gyro-rate RMS, tilt RMS, vibration frequency).
+
+- Best match: motor delay 5-10 ms, gyro noise 10-20 deg/s, turbulence 0.07 x ref., headroom 70%
+  (weak battery), motor mismatch up to 25%. Real 41 deg/s / 2.8 deg / 4.3 Hz vs sim 32-53 deg/s /
+  2.3-2.7 deg / 4.3-5.9 Hz.
+- Validation: the original DQN flips in 3 of 5 calibrated runs, matching the real failure. The flip
+  needs a 25% weaker motor, which agrees with the log (motor M2 stuck at maximum command).
+- Healthy battery (realistic sim): the DQN keeps the drone about 2x more level (mean tilt 1.8-2.9 vs
+  4.0-6.7 deg) and tumbles less under a 0.5 push (4.2% vs 12.5%). Weak battery: both tumble 17-46%.
+
+Retraining with domain randomization (two attempts, `--motor-delay-ms= --gyro-noise= ...`) did not
+beat the original model, so the Nov 7 models remain final.
+
+Side-by-side video (DQN vs PID, 10x slow motion): `sim/results/MSML642_Phase2_video.mp4`
 
 ## Repository layout
 
@@ -64,8 +93,10 @@ sim/
   train_dqn.py              DQN training (stable-baselines3)
   evaluate.py               DQN vs PID from 50 random initial tilts
   disturbance_test.py       mid-flight kick test, 9 sizes x 24 directions
-  robustness_test.py        mass change, motor delay, command delay
-  kick_compare.py           one kick, DQN vs PID: figure + side-by-side video
+  robustness_test.py        mass change, motor delay, command delay (Phase 1)
+  eval_v2.py                final evaluation: new recovery definition, kicks, sustained pushes, realistic conditions
+  sysid_from_logs.py        calibrate the simulator with a real flight log (972-setting search)
+  kick_compare.py           one kick or sustained push, DQN vs PID: figure + side-by-side video
   watch.py                  watch a policy in the PyBullet 3D view
   test_env.py               environment sanity check
   read_gains.py             read PID gains from the real drone
@@ -74,6 +105,7 @@ sim/
   hw_step3_cmd_check.py     real drone step 3: command sign check (thrust 0)
   hw_step4_tether_flight.py real drone step 4: flight, PID take-off then switch to DQN
   hw_motor_test.py          spin each motor directly (hardware check)
+  cam_*.py                  webcam + ArUco marker position tracking (experimental, not used in results)
   hw_signs.json             sign conventions found in steps 1 and 3
   diag*.py                  debugging scripts used during development
   results/                  trained models, evaluation results, flight logs
@@ -90,6 +122,7 @@ python -m venv .venv-sim
 pip install -e gym-pybullet-drones
 pip install stable-baselines3 torch gymnasium pybullet matplotlib cflib
 pip install imageio imageio-ffmpeg     # only for the kick_compare.py video
+pip install opencv-contrib-python      # only for the experimental cam_*.py scripts
 cd sim
 ```
 
@@ -105,8 +138,13 @@ python test_env.py                                     # environment check
 python train_dqn.py --levels=-90,-30,0,30,90 --switch-mode prop --steps 500000 --seed 0
 python evaluate.py --model results\<run>\best_model.zip
 python disturbance_test.py --models a\best_model.zip b\best_model.zip c\best_model.zip
-python robustness_test.py --models a\best_model.zip b\best_model.zip c\best_model.zip --cmd-delays-ms 10,20,30,40
+python robustness_test.py --models a\best_model.zip b\best_model.zip c\best_model.zip
 python kick_compare.py                                 # 1000 deg/s kick, figure + mp4
+python kick_compare.py --disturbance sustained --frac 0.5 [--realistic]
+python eval_v2.py                                      # final comparison, clean simulator
+python eval_v2.py --real-like                          # calibrated realistic simulator
+python eval_v2.py --mass-scale 1.2                     # or --motor-delay-ms 20
+python sysid_from_logs.py                              # simulator calibration from the flight log
 python watch.py --policy dqn --model results\<run>\best_model.zip
 ```
 
@@ -136,14 +174,16 @@ battery) at 100 Hz.
 Sign conventions found on our drone: the logged pitch angle (`stabilizer.pitch`) is inverted
 compared with the simulator; roll, both gyro rates, and the rate commands match.
 
-## Status and next steps
+## Status
 
-- Simulation: complete (training, evaluation, kick and robustness tests).
-- Real drone: sensor, timing, and command checks pass, and the drone flies under the firmware PID.
-  In the first DQN flight the policy kept the tilt within 7 deg for about 4.6 s, then an
-  oscillation grew and the drone flipped. The logs point to motor lag and vibration noise.
-- Next: retrain with random motor lag (0-30 ms), measured gyro noise, and sensor delay; check
-  in simulation (goal: >= 95% success with 20 ms motor lag); then tethered flights and push tests.
+- Simulation: complete. Final comparison under the recovery definition above, plus robustness and
+  realistic (calibrated) conditions.
+- Real drone: sensor, timing and command checks pass and the drone flies under the firmware PID. The
+  DQN flight flipped after 4.6 s; calibration traced this mainly to the hardware (weak battery,
+  uneven motors). Hardware testing was stopped after a frame part broke.
+- Known limits: DQN command jitter (7-15 changes/s clean, ~40/s under turbulence) and ~1 deg leftover
+  tilt. Possible next steps: a smoothness-focused reward or output filter, and a hybrid controller
+  (DQN for large tilts, PID near level).
 
 ## References
 
