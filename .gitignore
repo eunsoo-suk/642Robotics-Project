@@ -6,3 +6,6 @@ cache/
 .cfcache/
 _camtest/
 sim/cam_snapshot.png
+.venv/
+sim/results/sysid_20261118_1545/
+sim/results/sysid_20261118_1604/
