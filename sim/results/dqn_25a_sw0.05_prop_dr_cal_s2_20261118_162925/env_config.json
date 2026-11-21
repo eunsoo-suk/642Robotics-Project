@@ -1,0 +1,52 @@
+{
+  "rate_levels": [
+    -90.0,
+    -30.0,
+    0.0,
+    30.0,
+    90.0
+  ],
+  "tilt_norm_deg": 60.0,
+  "w_switch": 0.05,
+  "switch_mode": "prop",
+  "gyro_lpf_hz": 80.0,
+  "motor_delay_ms": [
+    0.0,
+    15.0
+  ],
+  "motor_tau_ms": [
+    0.0,
+    10.0
+  ],
+  "cmd_delay_ms": [
+    0.0,
+    20.0
+  ],
+  "gyro_noise_dps": [
+    5.0,
+    25.0
+  ],
+  "att_noise_deg": [
+    0.0,
+    0.5
+  ],
+  "att_bias_deg": 1.0,
+  "motor_mismatch": [
+    0.0,
+    0.25
+  ],
+  "thrust_limit": [
+    0.65,
+    1.0
+  ],
+  "dist_torque": [
+    0.0,
+    0.09
+  ],
+  "dist_tau_s": 0.05,
+  "obs_history": 2,
+  "tilt_integral": true,
+  "w_cmd": 0.02,
+  "w_precise": 0.05,
+  "precise_deg": 2.0
+}

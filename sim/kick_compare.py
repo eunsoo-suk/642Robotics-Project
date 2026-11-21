@@ -8,8 +8,11 @@ Scenario (same as disturbance_test.py):
 Both controllers get exactly the same kick.
 
 Run:
-    python kick_compare.py                          # 1000 deg/s, +roll, DQN seed 1
+    python kick_compare.py                          # 1000 deg/s kick, +roll, DQN seed 1
     python kick_compare.py --mag 750 --theta 45     # other size / direction
+    python kick_compare.py --disturbance sustained --frac 0.5 --dur 0.5    # sustained torque (gust) instead of a kick
+    python kick_compare.py --realistic              # calibrated realistic sim (delay, gyro noise, air turbulence,
+                                                    # motor mismatch) from the real flight logs
     python kick_compare.py --no-video               # figure only
 Output: results\kick_compare_<time>\
     kick_compare.png   tilt vs time, both controllers
@@ -28,17 +31,27 @@ ap = argparse.ArgumentParser()
 ap.add_argument('--model', default=os.path.join(HERE, 'results', 'dqn_25a_sw0.05_prop_s1_20261107_174517', 'best_model.zip'))
 ap.add_argument('--mag', type=float, default=1000.0, help='kick size (deg/s)')
 ap.add_argument('--theta', type=float, default=0.0, help='kick direction (deg): 0 = +roll, 90 = +pitch')
-ap.add_argument('--kick-time', type=float, default=1.0)
+ap.add_argument('--kick-time', type=float, default=1.0, help='time of the disturbance (s)')
+ap.add_argument('--disturbance', default='kick', choices=['kick', 'sustained'])
+ap.add_argument('--frac', type=float, default=0.5, help='sustained torque size (x reference torque, about 7.4 mN m)')
+ap.add_argument('--dur', type=float, default=0.5, help='sustained torque duration (s)')
+ap.add_argument('--realistic', action='store_true',
+                help='calibrated sim, healthy battery: motor delay 10 ms, gyro noise 10, air turbulence 0.07 (0.05 s), motor mismatch 10%%')
 ap.add_argument('--band', type=float, default=5.0, help='recovered = tilt stays below this (deg)')
 ap.add_argument('--no-video', action='store_true')
 ap.add_argument('--slow', type=float, default=10.0, help='video slow-motion factor')
-ap.add_argument('--window', type=float, default=0.9, help='video length after the kick (s, sim time)')
+ap.add_argument('--window', type=float, default=None, help='video length after the disturbance (s, sim time); default 0.9 kick, dur+1 sustained')
 ap.add_argument('--cam-yaw', type=float, default=90.0, help='90 = look along the roll axis')
 ap.add_argument('--cam-pitch', type=float, default=8.0)
 ap.add_argument('--cam-dist', type=float, default=0.18)
 args = ap.parse_args()
 
-out = os.path.join(HERE, 'results', time.strftime('kick_compare_%Y%m%d_%H%M'))
+if args.window is None:
+    args.window = 0.9 if args.disturbance == 'kick' else args.dur + 1.0
+COND = dict(motor_delay_ms=10.0, gyro_noise_dps=10.0, dist_torque=0.07, dist_tau_s=0.05, motor_mismatch=0.1) if args.realistic else {}
+D_TXT = (f'{args.mag:.0f} deg/s kick' if args.disturbance == 'kick' else f'{args.frac:g} x ref. torque for {args.dur:g} s') + \
+        (' (realistic sim)' if args.realistic else '')
+out = os.path.join(HERE, 'results', time.strftime(f'kick_compare_{args.disturbance}{"_real" if args.realistic else ""}_%Y%m%d_%H%M%S'))
 os.makedirs(out, exist_ok=True)
 FPS = 25
 CAP_HZ = FPS * args.slow                     # capture rate in sim time (250 Hz for 10x slow motion)
@@ -55,7 +68,7 @@ def snapshot(env):
 
 
 def run(model, cfg):
-    env = AttitudeEnv(**cfg)
+    env = AttitudeEnv(**cfg, **COND, episode_sec=max(3.0, args.kick_time + args.window + 0.2))
     sim_dt = 1.0 / env.SIM_HZ
     every = max(1, int(round(env.SIM_HZ / CAP_HZ)))
     t0, t1 = args.kick_time - 0.1, args.kick_time + args.window
@@ -76,9 +89,15 @@ def run(model, cfg):
     obs, info = env.reset(seed=0, options={'tilt_deg': [0.0, 0.0], 'rate_deg': [0.0, 0.0]})
     hist, done, k, term = [], False, 0, False
     while not done:
-        if k == kick_step:
+        if args.disturbance == 'kick' and k == kick_step:
             env.apply_rate_kick(args.mag * u[0], args.mag * u[1])
             obs = env._obs()
+        if args.disturbance == 'sustained':
+            if k == kick_step:
+                tq = args.frac * env.torque_reference()
+                env.set_external_torque(tq * u[0], tq * u[1])
+            if k == kick_step + int(round(args.dur * env.CTRL_HZ)):
+                env.set_external_torque(0.0, 0.0)
         if model is None:
             obs, r, term, trunc, info = env.step_angle_pid()
         else:
@@ -107,7 +126,7 @@ res = {'PID (firmware)': run(None, load_env_config(args.model)),
        'DQN (ours)': run(DQN.load(args.model), load_env_config(args.model))}
 COL = {'PID (firmware)': 'tab:blue', 'DQN (ours)': 'tab:red'}
 
-print(f'\nKick {args.mag:.0f} deg/s, direction {args.theta:.0f} deg, at t = {args.kick_time:.1f} s')
+print(f'\n{D_TXT}, direction {args.theta:.0f} deg, at t = {args.kick_time:.1f} s')
 for n, r in res.items():
     s = 'tumbled' if r['tumbled'] else (f"{r['settle']:.2f} s" if not np.isnan(r['settle']) else 'not recovered')
     print(f'  {n:15s} max tilt {r["max_tilt"]:5.1f} deg   recovery time {s}')
@@ -121,13 +140,16 @@ import matplotlib.pyplot as plt
 def draw_plot(ax, cursor=None):
     for n, r in res.items():
         ax.plot(r['t'] - args.kick_time, r['tilt'], color=COL[n], lw=2,
-                label=f"{n}: back within {args.band:.0f} deg in {r['settle']:.2f} s")
+                label=(f"{n}: back within {args.band:.0f} deg in {r['settle']:.2f} s" if not np.isnan(r['settle'])
+                       else f"{n}: {'tumbled' if r['tumbled'] else 'not settled within ' + str(int(args.band)) + ' deg'}"))
         if not np.isnan(r['settle']):
             ax.axvline(r['settle'], color=COL[n], ls=':', lw=1.2)
     ax.axhspan(0, args.band, color='tab:green', alpha=0.10)
     ax.axvline(0, color='k', ls='--', lw=1)
-    ax.text(0.005, ax.get_ylim()[1] * 0.92 if cursor is not None else 1, ' kick', fontsize=9)
-    ax.set_xlim(-0.1, args.window); ax.set_xlabel('time after kick (s)'); ax.set_ylabel('tilt (deg)')
+    if args.disturbance == 'sustained':
+        ax.axvspan(0, args.dur, color='tab:orange', alpha=0.12, label='torque on')
+    ax.text(0.005, ax.get_ylim()[1] * 0.92 if cursor is not None else 1, ' ' + args.disturbance, fontsize=9)
+    ax.set_xlim(-0.1, args.window); ax.set_xlabel('time after the disturbance starts (s)'); ax.set_ylabel('tilt (deg)')
     ax.grid(alpha=0.3); ax.legend(fontsize=9, loc='upper right')
     if cursor is not None:
         ax.axvline(cursor, color='gray', lw=1.5)
@@ -135,7 +157,7 @@ def draw_plot(ax, cursor=None):
 
 fig, ax = plt.subplots(figsize=(7.5, 3.6))
 draw_plot(ax)
-ax.set_title(f'{args.mag:.0f} deg/s kick: tilt after the kick (lower and faster is better)')
+ax.set_title(f'{D_TXT}: tilt (lower and faster is better)', fontsize=10)
 fig.tight_layout(); fig.savefig(os.path.join(out, 'kick_compare.png'), dpi=150); plt.close(fig)
 print(f'\nSaved {os.path.join(out, "kick_compare.png")}')
 
@@ -153,7 +175,7 @@ if not args.no_video:
         a.axhline(H / 2, color='k', ls='--', lw=0.8, alpha=0.5)   # level reference
     draw_plot(axp)
     cur = axp.axvline(0, color='gray', lw=1.5)
-    fig.suptitle(f'Same {args.mag:.0f} deg/s kick at t = 0 s   ({args.slow:.0f}x slow motion)', fontsize=13)
+    fig.suptitle(f'Same disturbance for both: {D_TXT} at t = 0 s   ({args.slow:.0f}x slow motion)', fontsize=12)
     fig.tight_layout(rect=(0, 0, 1, 0.95))
     video = []
     for i in range(n_fr):

@@ -1,0 +1,88 @@
+{
+  "real_pid": {
+    "rate_rms": 41.082058968243715,
+    "tilt_rms": 2.7954636557712678,
+    "freq": 4.315476190476191
+  },
+  "real_dqn": {
+    "rate_rms": 56.18656348839923,
+    "tilt_rms": 2.287647292822086,
+    "freq": 5.434782608695651,
+    "switch_per_s": 23.47826086956522,
+    "flip_after_s": 4.6
+  },
+  "best": [
+    {
+      "motor_delay_ms": 5.0,
+      "motor_tau_ms": 0.0,
+      "gyro_noise_dps": 20.0,
+      "dist_torque": 0.05,
+      "thrust_limit": 0.7,
+      "motor_mismatch": 0.2,
+      "dist_tau_s": 0.3,
+      "pid_tumbled": 0,
+      "score": 0.9167881561646636,
+      "rate_rms": 30.66204193185251,
+      "tilt_rms": 2.3355446166011204,
+      "freq": 2.333333333333333
+    },
+    {
+      "motor_delay_ms": 5.0,
+      "motor_tau_ms": 0.0,
+      "gyro_noise_dps": 20.0,
+      "dist_torque": 0.05,
+      "thrust_limit": 0.7,
+      "motor_mismatch": 0.05,
+      "dist_tau_s": 0.3,
+      "pid_tumbled": 0,
+      "score": 1.0331719386842515,
+      "rate_rms": 28.165324995814824,
+      "tilt_rms": 2.2535495970320114,
+      "freq": 2.333333333333333
+    }
+  ],
+  "validation": [
+    {
+      "motor_delay_ms": 5.0,
+      "motor_tau_ms": 0.0,
+      "gyro_noise_dps": 20.0,
+      "dist_torque": 0.05,
+      "thrust_limit": 0.7,
+      "motor_mismatch": 0.2,
+      "dist_tau_s": 0.3,
+      "dqn_flips": 0,
+      "runs": 1,
+      "mean_flight_s": 5.0,
+      "dqn_rate_rms": 31.065024396382068,
+      "dqn_switch_per_s": 17.6
+    },
+    {
+      "motor_delay_ms": 5.0,
+      "motor_tau_ms": 0.0,
+      "gyro_noise_dps": 20.0,
+      "dist_torque": 0.05,
+      "thrust_limit": 0.7,
+      "motor_mismatch": 0.05,
+      "dist_tau_s": 0.3,
+      "dqn_flips": 0,
+      "runs": 1,
+      "mean_flight_s": 5.0,
+      "dqn_rate_rms": 28.01162696830844,
+      "dqn_switch_per_s": 19.0
+    },
+    {
+      "motor_delay_ms": 0,
+      "motor_tau_ms": 0,
+      "gyro_noise_dps": 0,
+      "dist_torque": 0,
+      "thrust_limit": 1.0,
+      "motor_mismatch": 0.0,
+      "dist_tau_s": 0.3,
+      "dqn_flips": 0,
+      "runs": 1,
+      "mean_flight_s": 5.0,
+      "dqn_rate_rms": 0.0,
+      "dqn_switch_per_s": 0.0
+    }
+  ]
+}

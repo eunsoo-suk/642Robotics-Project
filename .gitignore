@@ -1,1 +1,4 @@
 .venv-sim/Lib/site-packages/imageio_ffmpeg/binaries/
+__pycache__/
+cache/
+.venv-sim/

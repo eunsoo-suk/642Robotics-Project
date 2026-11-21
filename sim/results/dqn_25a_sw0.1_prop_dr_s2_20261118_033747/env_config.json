@@ -1,0 +1,33 @@
+{
+  "rate_levels": [
+    -90.0,
+    -30.0,
+    0.0,
+    30.0,
+    90.0
+  ],
+  "tilt_norm_deg": 60.0,
+  "w_switch": 0.1,
+  "switch_mode": "prop",
+  "gyro_lpf_hz": 80.0,
+  "motor_delay_ms": [
+    0.0,
+    20.0
+  ],
+  "motor_tau_ms": [
+    0.0,
+    30.0
+  ],
+  "cmd_delay_ms": [
+    0.0,
+    30.0
+  ],
+  "gyro_noise_dps": [
+    0.0,
+    30.0
+  ],
+  "att_noise_deg": [
+    0.0,
+    1.0
+  ]
+}
