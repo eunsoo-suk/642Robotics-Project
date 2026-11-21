@@ -1,5 +1,5 @@
 r"""
-Priority 2: calibrate the simulator with the real flight logs (system identification), then validate it.
+Calibrate the simulator with the real flight logs (system identification), then validate it.
 
 1) Features of the REAL drone hovering under the firmware PID (from a hw_step4 flight log):
    gyro rate RMS (deg/s), tilt RMS (deg), and the main oscillation frequency (Hz).
